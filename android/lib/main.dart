@@ -139,14 +139,14 @@ class _ChatPageState extends State<ChatPage> {
               endpoint.text=ep.text.trim();model.text=mo.text.trim();apiKey.text=key.text.trim();systemPrompt.text=sys.text;
               if(apiKey.text.isEmpty){await secure.delete(key:'provider_api_key');}else{await secure.write(key:'provider_api_key',value:apiKey.text);}
               await saveData();
-              if(mounted)Navigator.pop(ctx);
+              if(ctx.mounted)Navigator.pop(ctx);
               if(mounted)setState(()=>provider=endpoint.text.contains('openai.com')?'OPENAI':'CUSTOM PROVIDER');
               toast('Pengaturan tersimpan. API key disimpan di secure storage Android.');
             },
             child:const Text('SAVE SETTINGS',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1)))),
           const SizedBox(height:9),
           const Text('Jangan bagikan API key. Pemakaian model bisa dikenai biaya oleh provider. Gunakan HTTPS untuk endpoint online.',style:TextStyle(color:Colors.orangeAccent,fontSize:10)),
-        ]))));
+        ])))));
     ep.dispose();mo.dispose();key.dispose();sys.dispose();
   }
   Widget field(TextEditingController c,String label,String hint,{int maxLines=1})=>TextField(controller:c,maxLines:maxLines,autocorrect:false,decoration:dec(label,hint,Icons.tune));
