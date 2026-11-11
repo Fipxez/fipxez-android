@@ -62,7 +62,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('app/src/main/AndroidManifest.xml')
+          p = Path('android/app/src/main/AndroidManifest.xml')
           if not p.is_file():
               raise SystemExit(f'Missing generated manifest: {p.resolve()}')
           s = p.read_text()
