@@ -1,54 +1,46 @@
-# FIPXEZ Hybrid Security Audit 0.2.2
+# FIPXEZ Hybrid Security Audit 0.3.0
 
-Paket build FIPXEZ versi 0.2.2. Starter yang dapat dijalankan di Windows: FastAPI backend, PC worker, Android Flutter control panel, antrean scan, audit log, dan analisis temuan lokal berbasis aturan.
+FIPXEZ consists of a Flutter Android control panel, a FastAPI backend for Windows, and a lightweight PC worker. The Android app registers authorized hostnames, queues passive checks, and displays scan status.
 
-## Batasan dan keamanan
-- Hanya untuk aset yang dimiliki/dikelola atau memiliki izin tertulis. Simpan nomor tiket/rujukan izin saat mendaftarkan target.
-- Pemeriksaan pasif: HTTPS, sertifikat TLS, dan security headers. Tidak ada exploit, brute force, bypass, credential collection, stealth, atau modifikasi target.
-- Analisis lokal memberi indikasi, bukan bukti kerentanan. Remediasi hanya berupa saran; tidak ada perubahan otomatis.
-- Gunakan hanya di jaringan privat/lab. HTTP LAN untuk prototipe saja; jangan expose port 8000 ke internet. Gunakan hanya pada Wi-Fi privat tepercaya. Owner token tidak disimpan permanen oleh APK. Produksi wajib HTTPS, secrets manager, firewall, backup, dan hardening.
-- `config.env` berisi token owner/worker. Jangan kirim atau unggah file itu.
+## Security scope
+- Use only domains you own/manage or for which you have written authorization. Record the permission/ticket reference.
+- The worker performs one HTTPS GET to the registered hostname and records selected security headers. It does not crawl, exploit, brute-force, bypass authentication, collect credentials, scan ports, or modify targets.
+- Results are configuration observations, not proof of a vulnerability or a penetration test.
+- The backend rejects hostnames that resolve to non-public IP addresses. This is a guardrail, not a substitute for authorization.
+- Do not expose backend port 8000 to the public internet. For the prototype, use a trusted private Wi-Fi network only. Production use requires HTTPS, secret management, firewall restrictions, backups, and a security review.
+- Never commit or share `config.env`; it contains owner and worker tokens.
 
-## A. Setup Windows 10
-1. Extract ZIP ke folder biasa, mis. `C:\FIPXEZ`.
-2. Buka PowerShell di folder itu. Jika policy memblokir skrip, jalankan `Set-ExecutionPolicy -Scope Process Bypass`.
-3. Jalankan `./Setup-FIPXEZ.ps1`. Script membuat token acak, virtual environment, dan memasang dependency.
-4. Buka dua jendela PowerShell di folder proyek. Jalankan `./Run-Backend.ps1` pada jendela pertama dan `./Run-Worker.ps1` pada jendela kedua.
-5. Tes backend di PC: `http://127.0.0.1:8000/health`; dokumentasi API: `http://127.0.0.1:8000/docs`.
+## Windows 10 setup
+1. Extract the repository to a normal folder, for example `C:\\FIPXEZ`.
+2. Open PowerShell in that folder. If script execution is blocked, run `Set-ExecutionPolicy -Scope Process Bypass`.
+3. Run `./Setup-FIPXEZ.ps1`. This creates random tokens in `config.env`, Python virtual environments, and installs dependencies.
+4. Open two PowerShell windows in the project folder. Run `./Run-Backend.ps1` in the first and `./Run-Worker.ps1` in the second.
+5. Check `http://127.0.0.1:8000/health` on the PC. API docs are at `http://127.0.0.1:8000/docs`.
 
-## B. Sambungkan Android di Wi-Fi yang sama
-1. Cari IPv4 PC dengan `ipconfig` (contoh `192.168.1.10`).
-2. Di Windows Firewall, izinkan TCP 8000 hanya pada Private network. Jangan buat port-forwarding router.
-3. Build dan install APK (bagian C).
-4. Di aplikasi isi Backend URL `http://IP-PC:8000`, lalu Owner token dari `config.env`. Token hanya dipakai selama aplikasi berjalan dan tidak disimpan oleh aplikasi. Tekan Test koneksi.
-5. Daftarkan hostname publik yang diizinkan dan isi referensi izin/tiket. Pilih Scan. Worker harus sedang berjalan.
+## Android connection
+1. Connect the phone and PC to the same trusted Wi-Fi.
+2. Run `ipconfig` on Windows and note the PC IPv4 address.
+3. Allow inbound TCP 8000 in Windows Firewall for Private networks only. Do not configure router port forwarding.
+4. Install the APK produced by GitHub Actions.
+5. In FIPXEZ, enter `http://IP-PC:8000` and the owner token from `config.env`. The app keeps the token in memory only; it does not persist it.
+6. Register an authorized public hostname and its permission/ticket reference, then queue a scan. Keep the worker running on the PC.
 
-## C. Build APK Android
-Install Flutter SDK stable, Android Studio/Android SDK, dan terima lisensi (`flutter doctor --android-licenses`). Pastikan `flutter doctor` tidak menunjukkan error Android toolchain. Lalu jalankan `./Build-APK.ps1`.
-APK hasil: `android/build/app/outputs/flutter-apk/app-release.apk`.
+## Build APK with GitHub Actions
+The workflow `.github/workflows/build-android.yml` runs automatically after relevant source changes and can also be started manually:
+1. Open the repository's **Actions** tab.
+2. Select **Build FIPXEZ Android APK**.
+3. For a manual build, choose **Run workflow** and confirm.
+4. Open the completed run and download the **FIPXEZ-Android-APK** artifact.
 
-Jika build dari Android Studio/PC lain, buka folder `android/`, jalankan `flutter pub get`, lalu `flutter build apk --release`.
+The cloud workflow runs Python compilation, a backend smoke test, Flutter analysis, Flutter widget tests, and a release APK build. The APK is an unsigned release build for testing/sideloading. A production release requires your own signing keystore. The APK is a control panel, not a hosted cloud service: it requires the Windows backend and worker to be running and reachable over the same network.
 
-## D. Hasil dan API
-- `GET /health` — status backend.
-- `POST /targets` — daftar target berizin.
-- `POST /scans` — antrekan pemeriksaan.
-- `GET /scans/{id}` — status dan hasil.
-- `GET /scans/{id}/analysis` — analisis indikasi lokal.
-- `GET /audit` — jejak aktivitas.
+## API overview
+- `GET /health` — backend health.
+- `POST /targets` and `GET /targets` — register/list authorized targets.
+- `POST /scans`, `GET /scans`, and `GET /scans/{id}` — queue and inspect checks.
+- `GET /scans/{id}/analysis` — local rule-based recommendations.
+- `GET /audit` — audit events.
+- Worker endpoints use `X-Worker-Token`; owner endpoints use `X-Owner-Token`.
 
-Owner token memakai header `X-Owner-Token`; worker token terpisah memakai `X-Worker-Token`.
-
-## Kebutuhan
-Windows 10 64-bit, Python 3.11+, Flutter stable + Android SDK untuk APK. PC i3/RAM 8 GB cukup untuk worker ringan; GPU tidak dibutuhkan.
-
-## Build APK otomatis lewat GitHub Actions
-
-Folder `.github/workflows/build-android.yml` berisi workflow untuk membangun APK di runner cloud GitHub. Workflow sudah memperbaiki lokasi AndroidManifest agar izin INTERNET dan HTTP LAN diterapkan pada file manifest yang benar. Build juga menjalankan tes backend dan `flutter analyze` sebelum membuat APK (jadi PC lokal tidak perlu memasang Android SDK). Untuk menjalankannya, source harus berada di repository GitHub milik pengguna:
-
-1. Buat repository baru di GitHub, lalu upload/push isi folder `FIPXEZ`.
-2. Buka tab **Actions** pada repository dan aktifkan Actions bila diminta.
-3. Pilih **Build FIPXEZ Android APK** → **Run workflow**.
-4. Setelah status selesai, buka run tersebut dan unduh artifact **FIPXEZ-Android-APK**.
-
-Workflow ini menghasilkan APK release yang belum ditandatangani dengan kunci distribusi milik pemilik produk. Untuk rilis Play Store atau distribusi komersial, buat dan simpan signing keystore sendiri. APK juga tetap memerlukan backend/worker aktif dan URL backend yang dapat dijangkau HP; APK bukan layanan cloud mandiri.
+## Requirements
+Windows 10 64-bit, Python 3.11+, Flutter stable and Android SDK for local builds. The GitHub Actions build does not require Flutter or Android Studio on the user's PC.
