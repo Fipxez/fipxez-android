@@ -91,16 +91,16 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) => Scaffold(body:SafeArea(child:ListView(
     padding:const EdgeInsets.fromLTRB(18,14,18,28),children:[
       Row(children:[
-        Container(width:43,height:43,decoration:BoxDecoration(color:neon.withOpacity(.12),borderRadius:BorderRadius.circular(13),border:Border.all(color:neon.withOpacity(.45))),child:const Icon(Icons.radar_rounded,color:neon,size:25)),
+        Container(width:43,height:43,decoration:BoxDecoration(color:neon.withValues(alpha: .12),borderRadius:BorderRadius.circular(13),border:Border.all(color:neon.withValues(alpha: .45))),child:const Icon(Icons.radar_rounded,color:neon,size:25)),
         const SizedBox(width:11),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text('FIPXEZ',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,letterSpacing:2)),
           Text('MOBILE SECURITY CONSOLE',style:TextStyle(fontSize:9,color:muted,letterSpacing:1.7,fontWeight:FontWeight.w700))])),
-        Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:neon.withOpacity(.1),borderRadius:BorderRadius.circular(30),border:Border.all(color:neon.withOpacity(.35))),
+        Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:neon.withValues(alpha: .1),borderRadius:BorderRadius.circular(30),border:Border.all(color:neon.withValues(alpha: .35))),
           child:const Row(children:[Icon(Icons.circle,color:neon,size:7),SizedBox(width:6),Text('MOBILE',style:TextStyle(color:neon,fontSize:10,fontWeight:FontWeight.bold,letterSpacing:1))])),
       ]),
       const SizedBox(height:23),
       Container(padding:const EdgeInsets.all(19),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),
-        gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xff18352f),Color(0xff10202a),Color(0xff111a29)]),border:Border.all(color:neon.withOpacity(.24))),
+        gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xff18352f),Color(0xff10202a),Color(0xff111a29)]),border:Border.all(color:neon.withValues(alpha: .24))),
         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('PASSIVE SECURITY AUDIT',style:TextStyle(color:neon,fontSize:10,letterSpacing:2,fontWeight:FontWeight.w800)),
           const SizedBox(height:12),const Text('Your security\nworkspace.',style:TextStyle(fontSize:27,height:1.1,fontWeight:FontWeight.w900)),
