@@ -1,0 +1,9 @@
+FIPXEZ 0.2.2 verification (local build environment)
+
+- Python syntax compilation (backend, worker, tests): PASS
+- Backend API smoke test: PASS (health, auth rejection, public/private DNS validation with mocked DNS, target registration, queue, worker claim/result, analysis, audit)
+- No external host was scanned during tests.
+- GitHub Actions workflow YAML parse: PASS
+- Android owner token persistence review: PASS (token is no longer stored in SharedPreferences).
+- Flutter static analysis and Android APK build: NOT RUN; Flutter SDK / Android SDK are not installed in this environment.
+- APK installation and Android-to-PC connectivity: NOT RUN; requires a physical Android device and the user's Windows PC.

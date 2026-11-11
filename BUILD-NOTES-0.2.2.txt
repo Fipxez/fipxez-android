@@ -1,0 +1,8 @@
+FIPXEZ 0.2.2 - pemeriksaan paket
+
+- Backend API smoke test: PASS (1 test).
+- Android Flutter source: tersedia di android/lib/main.dart.
+- GitHub Actions: workflow manual (workflow_dispatch) dan tag v*.
+- Perbaikan: path AndroidManifest pada GitHub Actions dan Build-APK.ps1 diarahkan ke android/app/src/main/AndroidManifest.xml.
+- APK: BELUM dibangun/diuji pada perangkat. Build memerlukan Flutter + Android SDK atau GitHub Actions.
+- Setelah build, unduh artifact FIPXEZ-Android-APK dari tab Actions.
