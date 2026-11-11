@@ -62,12 +62,12 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('android/app/src/main/AndroidManifest.xml')
+          p = Path('app/src/main/AndroidManifest.xml')
           if not p.is_file():
               raise SystemExit(f'Missing generated manifest: {p.resolve()}')
           s = p.read_text()
           if 'android.permission.INTERNET' not in s:
-              s = s.replace('<application', '    <uses-permission android:name="android.permission.INTERNET" />\\n    <application', 1)
+              s = s.replace('<application', '    <uses-permission android:name="android.permission.INTERNET" />\n    <application', 1)
           if 'usesCleartextTraffic' not in s:
               s = s.replace('<application', '<application android:usesCleartextTraffic="true"', 1)
           p.write_text(s)
