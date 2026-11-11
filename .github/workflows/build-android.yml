@@ -23,7 +23,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('android/app/src/main/AndroidManifest.xml')
+          p=Path('app/src/main/AndroidManifest.xml')
           s=p.read_text()
           if 'android.permission.INTERNET' not in s:
               s=s.replace('<application','<uses-permission android:name="android.permission.INTERNET" />\\n    <application',1)
