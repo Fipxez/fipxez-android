@@ -53,8 +53,8 @@ import kotlin.concurrent.thread
 private val Navy = Color(0xFF05040B)
 private val Panel = Color(0xFF111020)
 private val Blue = Color(0xFF28BFFF)
-private val Purple = Color(0xFF8B35FF)
-private val PurpleSoft = Color(0xFFB18AFF)
+private val Purple = Color(0xFF8B1E3F)
+private val PurpleSoft = Color(0xFFE0A0AE)
 private val Muted = Color(0xFFAAA4C2)
 
 class MainActivity : ComponentActivity() {
@@ -374,7 +374,7 @@ private fun IntelApp(
             item {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(color = Color(0xFF21133B), shape = RoundedCornerShape(14.dp)) {
+                        Surface(color = Color(0xFF35101D), shape = RoundedCornerShape(14.dp)) {
                             Icon(Icons.Default.Radar, null, tint = PurpleSoft, modifier = Modifier.padding(10.dp).size(28.dp))
                         }
                         Spacer(Modifier.width(12.dp))
@@ -489,7 +489,7 @@ private fun IntelApp(
 }
 
 @Composable private fun ModuleCard(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF29233F))) {
+    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF39202A))) {
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = PurpleSoft, modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(13.dp))
