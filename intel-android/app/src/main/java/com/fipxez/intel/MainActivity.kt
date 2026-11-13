@@ -15,6 +15,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.viewinterop.AndroidView
 import android.view.ViewGroup
 import androidx.compose.runtime.DisposableEffect
@@ -355,20 +357,34 @@ private fun IntelApp(
     var note by remember { mutableStateOf("") }
 
     Scaffold(containerColor = Navy, bottomBar = {
-        NavigationBar(containerColor = Color(0xFF0D0B17), contentColor = PurpleSoft) {
-            listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Chat", "Evidence").forEach { item ->
-                NavigationBarItem(selected = selected == item, onClick = { selected = item },
-                    icon = { Icon(when(item) {
-                        "Overview" -> Icons.Default.Dashboard
-                        "Phone OSINT" -> Icons.Default.Search
-                        "Wi-Fi" -> Icons.Default.Wifi
-                        "Location" -> Icons.Default.MyLocation
-                        "Place CCTV" -> Icons.Default.Map
-                        "CCTV" -> Icons.Default.Videocam
-                        "Chat" -> Icons.Default.Chat
-                        "CCTV PLAYER" -> Icons.Default.PlayArrow
-                        else -> Icons.Default.Folder
-                    }, contentDescription = item) }, label = { Text(item, fontSize = 9.sp) })
+        Surface(color = Color(0xFF0D0B17), tonalElevation = 4.dp) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Chat", "Evidence").forEach { item ->
+                    val active = selected == item || (item == "CCTV" && selected == "CCTV PLAYER")
+                    TextButton(
+                        onClick = { selected = item },
+                        colors = ButtonDefaults.textButtonColors(contentColor = if (active) PurpleSoft else Muted),
+                        modifier = Modifier.widthIn(min = 66.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Icon(when(item) {
+                                "Overview" -> Icons.Default.Dashboard
+                                "Phone OSINT" -> Icons.Default.Search
+                                "Wi-Fi" -> Icons.Default.Wifi
+                                "Location" -> Icons.Default.MyLocation
+                                "Place CCTV" -> Icons.Default.Map
+                                "CCTV" -> Icons.Default.Videocam
+                                "Chat" -> Icons.Default.Chat
+                                else -> Icons.Default.Folder
+                            }, contentDescription = item)
+                            Text(item, fontSize = 9.sp, maxLines = 1)
+                        }
+                    }
+                }
             }
         }
     }) { padding ->
@@ -395,8 +411,7 @@ private fun IntelApp(
                 item { ModuleCard("Location", "GPS perangkat ini dan buka peta", Icons.Default.MyLocation) { selected = "Location" } }
                 item { ModuleCard("Place & CCTV Finder", "Cari kamera yang dipetakan di sekitar alamat tujuan", Icons.Default.Map) { selected = "Place CCTV" } }
                 item { ModuleCard("CCTV Monitor", "Buka RTSP/HTTP stream dengan aplikasi pemutar yang kompatibel", Icons.Default.Videocam) { selected = "CCTV" } }
-                item { ModuleCard("Chat", "Ruang pesan antar pengguna (server belum dikonfigurasi)", Icons.Default.Chat) { selected = "Chat" } }
-                item { ModuleCard("Chat", "Ruang pesan antar pengguna (menunggu backend)", Icons.Default.Chat) { selected = "Chat" } }
+                item { ModuleCard("Chat", "Ruang pesan antar pengguna (backend belum dikonfigurasi)", Icons.Default.Chat) { selected = "Chat" } }
                 item { ModuleCard("Evidence Center", "Simpan, hapus, dan ekspor catatan lokal", Icons.Default.Folder) { selected = "Evidence" } }
             }
             when (selected) {
