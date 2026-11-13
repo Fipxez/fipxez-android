@@ -32,6 +32,11 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import org.json.JSONObject
+import kotlin.concurrent.thread
 
 private val Navy = Color(0xFF07111F)
 private val Panel = Color(0xFF101F33)
@@ -43,6 +48,8 @@ class MainActivity : ComponentActivity() {
     private var wifiMessage by mutableStateOf("Tekan scan untuk membaca jaringan yang terlihat oleh perangkat.")
     private var deviceLocation by mutableStateOf("Lokasi belum diminta.")
     private var evidence by mutableStateOf<List<String>>(emptyList())
+    private var cctvResults by mutableStateOf<List<String>>(emptyList())
+    private var cctvSearchMessage by mutableStateOf("Cari kota atau alamat untuk menemukan titik kamera yang dipetakan secara publik.")
 
     private val locationPermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -74,7 +81,10 @@ class MainActivity : ComponentActivity() {
                     onDeleteEvidence = ::deleteEvidence,
                     onExportEvidence = ::exportEvidence,
                     onOpenCctv = ::openCctv,
-                    onPublicSearch = ::openPublicSearch
+                    onPublicSearch = ::openPublicSearch,
+                    cctvResults = cctvResults,
+                    cctvSearchMessage = cctvSearchMessage,
+                    onSearchPublicCctv = ::searchPublicCctv
                 )
             }
         }
@@ -181,8 +191,57 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openPublicSearch(number: String) {
-        val query = Uri.encode("\"$number\" laporan penipuan OR spam")
+        val query = Uri.encode("\"$number\" (bisnis OR layanan OR spam OR penipuan)")
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
+    }
+
+    private fun searchPublicCctv(place: String) {
+        if (place.isBlank()) { cctvSearchMessage = "Masukkan nama kota, jalan, atau alamat."; return }
+        cctvSearchMessage = "Mencari lokasi dan titik kamera yang dipetakan secara publik..."
+        cctvResults = emptyList()
+        thread {
+            try {
+                val encoded = URLEncoder.encode(place.trim(), "UTF-8")
+                val geo = (URL("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=$encoded").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 12000; readTimeout = 15000
+                    setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.2 public map lookup")
+                }
+                val geoText = geo.inputStream.bufferedReader().use { it.readText() }; geo.disconnect()
+                val geoArray = org.json.JSONArray(geoText)
+                if (geoArray.length() == 0) throw IllegalStateException("Alamat tidak ditemukan. Coba nama jalan atau kota yang lebih lengkap.")
+                val first = geoArray.getJSONObject(0)
+                val lat = first.getDouble("lat"); val lon = first.getDouble("lon")
+                val display = first.optString("display_name", place)
+                val q = """[out:json][timeout:25];(node["man_made"="surveillance"](around:3000,$lat,$lon);way["man_made"="surveillance"](around:3000,$lat,$lon);relation["man_made"="surveillance"](around:3000,$lat,$lon);node["surveillance"](around:3000,$lat,$lon);way["surveillance"](around:3000,$lat,$lon););out center tags;"""
+                val conn = URL("https://overpass-api.de/api/interpreter").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 15000; conn.readTimeout = 30000
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                conn.setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.2")
+                conn.outputStream.use { it.write(("data=" + URLEncoder.encode(q, "UTF-8")).toByteArray()) }
+                val response = conn.inputStream.bufferedReader().use { it.readText() }; conn.disconnect()
+                val elements = JSONObject(response).optJSONArray("elements") ?: org.json.JSONArray()
+                val found = mutableListOf<Pair<Float,String>>()
+                for (i in 0 until elements.length()) {
+                    val item = elements.getJSONObject(i); val tags = item.optJSONObject("tags") ?: JSONObject()
+                    val center = item.optJSONObject("center")
+                    val itemLat = if (item.has("lat")) item.optDouble("lat") else center?.optDouble("lat") ?: lat
+                    val itemLon = if (item.has("lon")) item.optDouble("lon") else center?.optDouble("lon") ?: lon
+                    val distance = FloatArray(1); Location.distanceBetween(lat,lon,itemLat,itemLon,distance)
+                    val name = tags.optString("name").ifBlank { tags.optString("operator").ifBlank { "Kamera/pengawasan tanpa nama" } }
+                    val kind = tags.optString("surveillance:type").ifBlank { tags.optString("camera:type").ifBlank { "jenis tidak dicantumkan" } }
+                    val map = "https://www.openstreetmap.org/?mlat=$itemLat&mlon=$itemLon#map=19/$itemLat/$itemLon"
+                    found.add(distance[0] to "$name • %.0f m • $kind\nPeta: $map".format(Locale.US,distance[0]))
+                }
+                val sorted = found.sortedBy { it.first }.take(30).map { it.second }
+                runOnUiThread {
+                    cctvResults = sorted
+                    cctvSearchMessage = if (sorted.isEmpty()) "Lokasi ditemukan: $display. Belum ada titik kamera yang dipetakan dalam radius 3 km. Ini bukan bukti tidak ada CCTV; cakupan peta bergantung data publik."
+                    else "Lokasi: $display\nDitemukan ${sorted.size} titik kamera/pengawasan dalam radius 3 km, diurutkan berdasarkan jarak. Titik peta tidak menjamin tersedia live stream publik."
+                }
+            } catch (e: Exception) {
+                runOnUiThread { cctvSearchMessage = "Pencarian gagal: ${e.message ?: "periksa koneksi internet lalu coba lagi."}" }
+            }
+        }
     }
 }
 
@@ -191,23 +250,26 @@ private fun IntelApp(
     wifiNetworks: List<String>, wifiMessage: String, locationText: String, evidence: List<String>,
     onScanWifi: () -> Unit, onGetLocation: () -> Unit, onOpenMap: () -> Unit,
     onAddEvidence: (String) -> Unit, onDeleteEvidence: (String) -> Unit, onExportEvidence: () -> Unit,
-    onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit
+    onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit,
+    cctvResults: List<String>, cctvSearchMessage: String, onSearchPublicCctv: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf("Overview") }
     var phone by remember { mutableStateOf("") }
     var phoneResult by remember { mutableStateOf("Analisis lokal hanya memeriksa format dan petunjuk prefix; identitas pemilik tidak tersedia.") }
     var cctvUrl by remember { mutableStateOf("") }
+    var placeQuery by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
 
     Scaffold(containerColor = Navy, bottomBar = {
         NavigationBar(containerColor = Panel) {
-            listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "CCTV", "Evidence").forEach { item ->
+            listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Evidence").forEach { item ->
                 NavigationBarItem(selected = selected == item, onClick = { selected = item },
                     icon = { Icon(when(item) {
                         "Overview" -> Icons.Default.Dashboard
                         "Phone OSINT" -> Icons.Default.Search
                         "Wi-Fi" -> Icons.Default.Wifi
                         "Location" -> Icons.Default.MyLocation
+                        "Place CCTV" -> Icons.Default.Map
                         "CCTV" -> Icons.Default.Videocam
                         else -> Icons.Default.Folder
                     }, contentDescription = item) }, label = { Text(item, fontSize = 9.sp) })
@@ -228,6 +290,7 @@ private fun IntelApp(
                 item { ModuleCard("Phone OSINT", "Periksa format nomor dan cari laporan publik", Icons.Default.Phone) { selected = "Phone OSINT" } }
                 item { ModuleCard("Wi-Fi Intelligence", "SSID, keamanan, kekuatan sinyal", Icons.Default.Wifi) { selected = "Wi-Fi" } }
                 item { ModuleCard("Location", "GPS perangkat ini dan buka peta", Icons.Default.MyLocation) { selected = "Location" } }
+                item { ModuleCard("Place & CCTV Finder", "Cari kamera yang dipetakan di sekitar alamat tujuan", Icons.Default.Map) { selected = "Place CCTV" } }
                 item { ModuleCard("CCTV Monitor", "Buka RTSP/HTTP stream dengan aplikasi pemutar yang kompatibel", Icons.Default.Videocam) { selected = "CCTV" } }
                 item { ModuleCard("Evidence Center", "Simpan, hapus, dan ekspor catatan lokal", Icons.Default.Folder) { selected = "Evidence" } }
             }
@@ -261,6 +324,14 @@ private fun IntelApp(
                     item { Button(onClick = onGetLocation, modifier = Modifier.fillMaxWidth()) { Text("PERBARUI LOKASI PERANGKAT") } }
                     item { OutlinedButton(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) { Text("BUKA DI PETA") } }
                     item { InfoCard("Lokasi hanya berasal dari sensor/lokasi HP yang memberi izin. Ini bukan pelacak nomor atau perangkat pihak lain.") }
+                }
+                "Place CCTV" -> {
+                    item { SectionTitle("LOCATION & PUBLIC CCTV FINDER") }
+                    item { OutlinedTextField(placeQuery, { placeQuery = it }, label = { Text("Kota / jalan / alamat tujuan") }, placeholder = { Text("Contoh: Pasirlayung, Bandung") }, modifier = Modifier.fillMaxWidth()) }
+                    item { Button(onClick = { onSearchPublicCctv(placeQuery) }, modifier = Modifier.fillMaxWidth()) { Text("CARI CCTV TERDEKAT") } }
+                    item { InfoCard(cctvSearchMessage) }
+                    items(cctvResults) { InfoCard(it) }
+                    item { InfoCard("Sumber: OpenStreetMap dan Overpass API. Hasil adalah titik kamera/pengawasan yang dipetakan publik, bukan daftar semua CCTV dan bukan jaminan live stream. Kamera privat dan feed tanpa publikasi tidak diakses.") }
                 }
                 "CCTV" -> {
                     item { SectionTitle("AUTHORIZED CCTV STREAM") }
