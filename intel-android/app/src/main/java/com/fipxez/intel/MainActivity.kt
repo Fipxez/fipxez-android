@@ -275,7 +275,7 @@ class MainActivity : ComponentActivity() {
     private fun openTelegramPublicSearch(identifier: String) {
         val clean = identifier.trim().removePrefix("@")
         if (clean.isBlank()) return
-        val query = Uri.encode("\\"$clean\\" (site:t.me OR site:telegram.me OR Telegram)")
+        val query = Uri.encode("\"$clean\" (site:t.me OR site:telegram.me OR Telegram)")
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
     }
 
