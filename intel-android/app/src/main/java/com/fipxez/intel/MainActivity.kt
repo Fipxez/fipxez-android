@@ -415,7 +415,7 @@ private fun IntelApp(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Chat", "Evidence").forEach { item ->
+                listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Evidence").forEach { item ->
                     val active = selected == item || (item == "CCTV" && selected == "CCTV PLAYER")
                     TextButton(
                         onClick = { selected = item },
@@ -430,7 +430,6 @@ private fun IntelApp(
                                 "Location" -> Icons.Default.MyLocation
                                 "Place CCTV" -> Icons.Default.Map
                                 "CCTV" -> Icons.Default.Videocam
-                                "Chat" -> Icons.Default.Chat
                                 else -> Icons.Default.Folder
                             }, contentDescription = item)
                             Text(item, fontSize = 9.sp, maxLines = 1)
@@ -463,7 +462,6 @@ private fun IntelApp(
                 item { ModuleCard("Location", "GPS perangkat ini dan buka peta", Icons.Default.MyLocation) { selected = "Location" } }
                 item { ModuleCard("Place & CCTV Finder", "Cari kamera yang dipetakan di sekitar alamat tujuan", Icons.Default.Map) { selected = "Place CCTV" } }
                 item { ModuleCard("CCTV Monitor", "Buka RTSP/HTTP stream dengan aplikasi pemutar yang kompatibel", Icons.Default.Videocam) { selected = "CCTV" } }
-                item { ModuleCard("Chat", "Ruang pesan antar pengguna (backend belum dikonfigurasi)", Icons.Default.Chat) { selected = "Chat" } }
                 item { ModuleCard("Evidence Center", "Simpan, hapus, dan ekspor catatan lokal", Icons.Default.Folder) { selected = "Evidence" } }
             }
             when (selected) {
@@ -538,10 +536,6 @@ private fun IntelApp(
                     item { SectionTitle("LIVE CCTV PLAYER") }
                     item { if (cctvUrl.isNotBlank()) CctvPlayer(cctvUrl) else InfoCard("Belum ada URL stream.") }
                     item { TextButton(onClick = { selected = "CCTV" }) { Text("KEMBALI") } }
-                }
-                "Chat" -> {
-                    item { SectionTitle("CHAT") }
-                    item { InfoCard("Chat antar pengguna belum aktif: repositori ini belum memiliki backend pesan, autentikasi akun, atau penyimpanan percakapan. Fitur tidak akan mengaku mengirim pesan sampai layanan tersebut dikonfigurasi.") }
                 }
                 "Evidence" -> {
                     item { SectionTitle("EVIDENCE CENTER") }
