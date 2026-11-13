@@ -320,13 +320,13 @@ class MainActivity : ComponentActivity() {
                     val map = "https://www.openstreetmap.org/?mlat=$itemLat&mlon=$itemLon#map=19/$itemLat/$itemLon"
                     val stream = listOf("camera:stream", "surveillance:stream", "stream_url").firstNotNullOfOrNull { key -> tags.optString(key).takeIf { it.startsWith("http://") || it.startsWith("https://") || it.startsWith("rtsp://") } }
                     val streamLine = stream?.let { "\nPublic stream: $it" } ?: ""
-                    found.add(distance[0] to "$name • %.0f m • $kind\nPeta: $map$streamLine".format(Locale.US,distance[0]))
+                    found.add(distance[0] to "$name • %.0f m • $kind\nAlamat: $address\nPeta: $map$streamLine".format(Locale.US,distance[0]))
                 }
                 val sorted = found.sortedBy { it.first }.map { it.second }
                 runOnUiThread {
                     cctvResults = sorted
-                    cctvSearchMessage = if (sorted.isEmpty()) "Lokasi ditemukan: $display. Belum ada titik kamera yang dipetakan dalam radius 3 km. Ini bukan bukti tidak ada CCTV; cakupan peta bergantung data publik."
-                    else "Lokasi: $display\nDitemukan ${sorted.size} titik kamera/pengawasan dalam radius 3 km, diurutkan berdasarkan jarak. Titik peta tidak menjamin tersedia live stream publik."
+                    cctvSearchMessage = if (sorted.isEmpty()) "Lokasi ditemukan: $display. Belum ada titik kamera yang dipetakan dalam radius 5 km. Ini bukan bukti tidak ada CCTV; cakupan peta bergantung data publik."
+                    else "Lokasi: $display\nDitemukan ${sorted.size} titik kamera/pengawasan dalam radius 5 km, diurutkan berdasarkan jarak. Titik peta tidak menjamin tersedia live stream publik."
                 }
             } catch (e: Exception) {
                 runOnUiThread { cctvSearchMessage = "Pencarian gagal: ${e.message ?: "periksa koneksi internet lalu coba lagi."}" }
@@ -396,6 +396,7 @@ private fun IntelApp(
                 item { ModuleCard("Place & CCTV Finder", "Cari kamera yang dipetakan di sekitar alamat tujuan", Icons.Default.Map) { selected = "Place CCTV" } }
                 item { ModuleCard("CCTV Monitor", "Buka RTSP/HTTP stream dengan aplikasi pemutar yang kompatibel", Icons.Default.Videocam) { selected = "CCTV" } }
                 item { ModuleCard("Chat", "Ruang pesan antar pengguna (server belum dikonfigurasi)", Icons.Default.Chat) { selected = "Chat" } }
+                item { ModuleCard("Chat", "Ruang pesan antar pengguna (menunggu backend)", Icons.Default.Chat) { selected = "Chat" } }
                 item { ModuleCard("Evidence Center", "Simpan, hapus, dan ekspor catatan lokal", Icons.Default.Folder) { selected = "Evidence" } }
             }
             when (selected) {
@@ -470,6 +471,10 @@ private fun IntelApp(
                     item { SectionTitle("LIVE CCTV PLAYER") }
                     item { if (cctvUrl.isNotBlank()) CctvPlayer(cctvUrl) else InfoCard("Belum ada URL stream.") }
                     item { TextButton(onClick = { selected = "CCTV" }) { Text("KEMBALI") } }
+                }
+                "Chat" -> {
+                    item { SectionTitle("CHAT") }
+                    item { InfoCard("Chat antar pengguna belum aktif: repositori ini belum memiliki backend pesan, autentikasi akun, atau penyimpanan percakapan. Fitur tidak akan mengaku mengirim pesan sampai layanan tersebut dikonfigurasi.") }
                 }
                 "Evidence" -> {
                     item { SectionTitle("EVIDENCE CENTER") }
