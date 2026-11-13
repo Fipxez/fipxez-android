@@ -176,6 +176,40 @@ class MainActivity : ComponentActivity() {
         wifiMessage = "Teks berhasil disalin."
     }
 
+    private fun requestOverpass(query: String): String {
+        val endpoints = listOf(
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter"
+        )
+        var lastError = "Layanan peta publik tidak merespons."
+        for (endpoint in endpoints) {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    doOutput = true
+                    connectTimeout = 15000
+                    readTimeout = 45000
+                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                    setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.4 (public map lookup)")
+                }
+                connection.outputStream.use {
+                    it.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray())
+                }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (status in 200..299) return body
+                lastError = "Server peta membalas HTTP $status."
+            } catch (e: Exception) {
+                lastError = e.message ?: "Koneksi ke layanan peta gagal."
+            } finally {
+                connection?.disconnect()
+            }
+        }
+        throw IllegalStateException("$lastError Coba lagi beberapa saat; layanan peta publik dapat membatasi permintaan.")
+    }
+
     private fun searchPublicWifi(place: String) {
         if (place.isBlank()) { publicWifiMessage = "Masukkan kota atau alamat."; return }
         publicWifiMessage = "Mencari hotspot Wi-Fi publik yang dipetakan..."
@@ -191,12 +225,7 @@ class MainActivity : ComponentActivity() {
                 if (arr.length() == 0) throw IllegalStateException("Alamat tidak ditemukan.")
                 val loc = arr.getJSONObject(0); val lat = loc.getDouble("lat"); val lon = loc.getDouble("lon")
                 val query = """[out:json][timeout:25];(node["internet_access"~"wlan|public"](around:5000,$lat,$lon);way["internet_access"~"wlan|public"](around:5000,$lat,$lon);node["internet_access"="yes"](around:5000,$lat,$lon););out center tags;"""
-                val conn = URL("https://overpass-api.de/api/interpreter").openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 15000; conn.readTimeout = 30000
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                conn.setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.3")
-                conn.outputStream.use { it.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray()) }
-                val data = conn.inputStream.bufferedReader().use { it.readText() }; conn.disconnect()
+                val data = requestOverpass(query)
                 val elements = JSONObject(data).optJSONArray("elements") ?: org.json.JSONArray()
                 val results = mutableListOf<Pair<Float,String>>()
                 for (i in 0 until elements.length()) {
@@ -301,12 +330,7 @@ class MainActivity : ComponentActivity() {
                 val lat = first.getDouble("lat"); val lon = first.getDouble("lon")
                 val display = first.optString("display_name", place)
                 val q = """[out:json][timeout:25];(node["man_made"="surveillance"](around:5000,$lat,$lon);way["man_made"="surveillance"](around:5000,$lat,$lon);relation["man_made"="surveillance"](around:5000,$lat,$lon);node["surveillance"](around:5000,$lat,$lon);way["surveillance"](around:5000,$lat,$lon););out center tags;"""
-                val conn = URL("https://overpass-api.de/api/interpreter").openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 15000; conn.readTimeout = 30000
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                conn.setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.2")
-                conn.outputStream.use { it.write(("data=" + URLEncoder.encode(q, "UTF-8")).toByteArray()) }
-                val response = conn.inputStream.bufferedReader().use { it.readText() }; conn.disconnect()
+                val response = requestOverpass(q)
                 val elements = JSONObject(response).optJSONArray("elements") ?: org.json.JSONArray()
                 val found = mutableListOf<Pair<Float,String>>()
                 for (i in 0 until elements.length()) {
