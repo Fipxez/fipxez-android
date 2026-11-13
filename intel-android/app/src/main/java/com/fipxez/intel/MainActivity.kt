@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.compose.foundation.lazy.LazyColumn
@@ -576,6 +578,7 @@ private fun IntelApp(
 
 @Composable private fun CctvPlayer(url: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var playbackStatus by remember(url) { mutableStateOf("Menghubungkan ke stream CCTV...") }
     val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -583,11 +586,38 @@ private fun IntelApp(
             playWhenReady = true
         }
     }
-    DisposableEffect(player) { onDispose { player.release() } }
-    AndroidView(factory = { ctx ->
-        PlayerView(ctx).apply {
-            this.player = player
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620)
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                playbackStatus = when (playbackState) {
+                    Player.STATE_BUFFERING -> "Menghubungkan / buffering..."
+                    Player.STATE_READY -> if (player.isPlaying) "LIVE • Video sedang diputar" else "Stream tersedia • Menunggu pemutaran"
+                    Player.STATE_ENDED -> "Stream berakhir."
+                    else -> "Menunggu stream..."
+                }
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) playbackStatus = "LIVE • Video sedang diputar"
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                playbackStatus = "Gagal memutar: ${error.errorCodeName}. Periksa URL, akses, format, atau koneksi stream."
+            }
         }
-    }, modifier = Modifier.fillMaxWidth().height(230.dp))
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AndroidView(factory = { ctx ->
+            PlayerView(ctx).apply {
+                this.player = player
+                useController = true
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620)
+            }
+        }, modifier = Modifier.fillMaxWidth().height(230.dp))
+        Text(playbackStatus, color = if (playbackStatus.startsWith("Gagal")) Color(0xFFFF8585) else PurpleSoft, fontSize = 12.sp)
+        Text("Stream harus dapat diakses dari perangkat dan memakai protokol/codec yang didukung. Titik kamera di peta bukan jaminan memiliki siaran live.", color = Muted, fontSize = 11.sp)
+    }
 }
