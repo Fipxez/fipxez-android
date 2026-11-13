@@ -222,7 +222,7 @@ private fun IntelApp(
                     item { InfoCard(wifiMessage) }
                     item {
                         Button(onClick = onScanWifi, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.WifiFind, null)
+                            Icon(Icons.Default.Wifi, null)
                             Spacer(Modifier.width(8.dp))
                             Text("SCAN NEARBY WI-FI")
                         }
