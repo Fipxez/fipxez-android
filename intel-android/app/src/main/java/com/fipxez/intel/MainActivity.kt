@@ -50,10 +50,12 @@ import java.net.URLEncoder
 import org.json.JSONObject
 import kotlin.concurrent.thread
 
-private val Navy = Color(0xFF07111F)
-private val Panel = Color(0xFF101F33)
-private val Blue = Color(0xFF35B6FF)
-private val Muted = Color(0xFF9CB0C8)
+private val Navy = Color(0xFF05040B)
+private val Panel = Color(0xFF111020)
+private val Blue = Color(0xFF28BFFF)
+private val Purple = Color(0xFF8B35FF)
+private val PurpleSoft = Color(0xFFB18AFF)
+private val Muted = Color(0xFFAAA4C2)
 
 class MainActivity : ComponentActivity() {
     private var wifiNetworks by mutableStateOf<List<String>>(emptyList())
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
-                primary = Blue, background = Navy, surface = Panel,
+                primary = Purple, secondary = Blue, background = Navy, surface = Panel,
                 onBackground = Color.White, onSurface = Color.White
             )) {
                 IntelApp(
@@ -351,7 +353,7 @@ private fun IntelApp(
     var note by remember { mutableStateOf("") }
 
     Scaffold(containerColor = Navy, bottomBar = {
-        NavigationBar(containerColor = Panel) {
+        NavigationBar(containerColor = Color(0xFF0D0B17), contentColor = PurpleSoft) {
             listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Evidence").forEach { item ->
                 NavigationBarItem(selected = selected == item, onClick = { selected = item },
                     icon = { Icon(when(item) {
@@ -371,9 +373,16 @@ private fun IntelApp(
             verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(top = 20.dp, bottom = 24.dp)) {
             item {
                 Column {
-                    Text("FIPXEZ", color = Blue, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Text("INTEL", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("ANDROID INVESTIGATION TOOLKIT", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = Color(0xFF21133B), shape = RoundedCornerShape(14.dp)) {
+                            Icon(Icons.Default.Radar, null, tint = PurpleSoft, modifier = Modifier.padding(10.dp).size(28.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("FIPXEZ INTEL", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+                            Text("MOBILE INTELLIGENCE TOOLKIT", color = PurpleSoft, fontSize = 9.sp, letterSpacing = 1.5.sp)
+                        }
+                    }
                 }
             }
             if (selected == "Overview") {
@@ -480,9 +489,9 @@ private fun IntelApp(
 }
 
 @Composable private fun ModuleCard(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp)) {
+    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF29233F))) {
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Blue, modifier = Modifier.size(28.dp))
+            Icon(icon, null, tint = PurpleSoft, modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
