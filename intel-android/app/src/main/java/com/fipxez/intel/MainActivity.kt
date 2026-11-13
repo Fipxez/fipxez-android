@@ -314,6 +314,8 @@ class MainActivity : ComponentActivity() {
                     val itemLon = if (item.has("lon")) item.optDouble("lon") else center?.optDouble("lon") ?: lon
                     val distance = FloatArray(1); Location.distanceBetween(lat,lon,itemLat,itemLon,distance)
                     val name = tags.optString("name").ifBlank { tags.optString("operator").ifBlank { "Kamera/pengawasan tanpa nama" } }
+                    val addressParts = listOf("addr:housenumber", "addr:street", "addr:suburb", "addr:city").mapNotNull { key -> tags.optString(key).takeIf { it.isNotBlank() } }
+                    val address = addressParts.joinToString(", ").ifBlank { "Alamat rinci tidak tersedia di data peta" }
                     val kind = tags.optString("surveillance:type").ifBlank { tags.optString("camera:type").ifBlank { "jenis tidak dicantumkan" } }
                     val map = "https://www.openstreetmap.org/?mlat=$itemLat&mlon=$itemLon#map=19/$itemLat/$itemLon"
                     val stream = listOf("camera:stream", "surveillance:stream", "stream_url").firstNotNullOfOrNull { key -> tags.optString(key).takeIf { it.startsWith("http://") || it.startsWith("https://") || it.startsWith("rtsp://") } }
@@ -354,7 +356,7 @@ private fun IntelApp(
 
     Scaffold(containerColor = Navy, bottomBar = {
         NavigationBar(containerColor = Color(0xFF0D0B17), contentColor = PurpleSoft) {
-            listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Evidence").forEach { item ->
+            listOf("Overview", "Phone OSINT", "Wi-Fi", "Location", "Place CCTV", "CCTV", "Chat", "Evidence").forEach { item ->
                 NavigationBarItem(selected = selected == item, onClick = { selected = item },
                     icon = { Icon(when(item) {
                         "Overview" -> Icons.Default.Dashboard
@@ -363,6 +365,7 @@ private fun IntelApp(
                         "Location" -> Icons.Default.MyLocation
                         "Place CCTV" -> Icons.Default.Map
                         "CCTV" -> Icons.Default.Videocam
+                        "Chat" -> Icons.Default.Chat
                         "CCTV PLAYER" -> Icons.Default.PlayArrow
                         else -> Icons.Default.Folder
                     }, contentDescription = item) }, label = { Text(item, fontSize = 9.sp) })
@@ -392,6 +395,7 @@ private fun IntelApp(
                 item { ModuleCard("Location", "GPS perangkat ini dan buka peta", Icons.Default.MyLocation) { selected = "Location" } }
                 item { ModuleCard("Place & CCTV Finder", "Cari kamera yang dipetakan di sekitar alamat tujuan", Icons.Default.Map) { selected = "Place CCTV" } }
                 item { ModuleCard("CCTV Monitor", "Buka RTSP/HTTP stream dengan aplikasi pemutar yang kompatibel", Icons.Default.Videocam) { selected = "CCTV" } }
+                item { ModuleCard("Chat", "Ruang pesan antar pengguna (server belum dikonfigurasi)", Icons.Default.Chat) { selected = "Chat" } }
                 item { ModuleCard("Evidence Center", "Simpan, hapus, dan ekspor catatan lokal", Icons.Default.Folder) { selected = "Evidence" } }
             }
             when (selected) {
