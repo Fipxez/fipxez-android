@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
                     onExportEvidence = ::exportEvidence,
                     onOpenCctv = ::openCctv,
                     onPublicSearch = ::openPublicSearch,
+                    onCallerIdSearch = ::openCallerIdSearch,
                     cctvResults = cctvResults,
                     cctvSearchMessage = cctvSearchMessage,
                     onSearchPublicCctv = ::searchPublicCctv
@@ -191,7 +192,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openPublicSearch(number: String) {
-        val query = Uri.encode("\"$number\" (bisnis OR layanan OR spam OR penipuan)")
+        val clean = number.trim()
+        val query = Uri.encode("\"$clean\" (nama OR tag OR bisnis OR layanan OR spam OR penipuan OR kontak)")
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
+    }
+
+    private fun openCallerIdSearch(number: String) {
+        val clean = number.filter { it.isDigit() || it == '+' }
+        val query = Uri.encode("\"$clean\" (site:getcontact.com OR site:truecaller.com OR site:tellows.co.id OR site:kredibel.com)")
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
     }
 
@@ -250,7 +258,7 @@ private fun IntelApp(
     wifiNetworks: List<String>, wifiMessage: String, locationText: String, evidence: List<String>,
     onScanWifi: () -> Unit, onGetLocation: () -> Unit, onOpenMap: () -> Unit,
     onAddEvidence: (String) -> Unit, onDeleteEvidence: (String) -> Unit, onExportEvidence: () -> Unit,
-    onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit,
+    onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit, onCallerIdSearch: (String) -> Unit,
     cctvResults: List<String>, cctvSearchMessage: String, onSearchPublicCctv: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf("Overview") }
@@ -309,8 +317,9 @@ private fun IntelApp(
                         phoneResult = if (digits.length in 9..15) "Format digit terlihat masuk akal. $prefix\nIni bukan verifikasi registrasi atau identitas pelanggan." else "Format nomor belum valid. Periksa kembali jumlah digit."
                     }, modifier = Modifier.fillMaxWidth()) { Text("ANALYZE NUMBER") } }
                     item { InfoCard(phoneResult) }
-                    item { Button(onClick = { if (phone.isNotBlank()) onPublicSearch(phone) }, modifier = Modifier.fillMaxWidth()) { Text("CARI LAPORAN PUBLIK DI WEB") } }
-                    item { InfoCard("Pencarian web dibuka hanya setelah tombol ditekan. Jangan masukkan nomor pribadi orang lain tanpa alasan yang sah.") }
+                    item { Button(onClick = { if (phone.isNotBlank()) onPublicSearch(phone) }, modifier = Modifier.fillMaxWidth()) { Text("CARI NAMA & JEJAK NOMOR DI WEB") } }
+                    item { OutlinedButton(onClick = { if (phone.isNotBlank()) onCallerIdSearch(phone) }, modifier = Modifier.fillMaxWidth()) { Text("CEK DIREKTORI CALLER ID / TAG") } }
+                    item { InfoCard("Pencarian dilakukan dari HP lu ke sumber web publik; orang lain tidak perlu memasang FIPXEZ. Hasil nama/tag hanya muncul bila dipublikasikan atau diindeks sumber tersebut. FIPXEZ tidak mengambil database privat Getcontact/Truecaller dan hasil perlu diverifikasi.") }
                 }
                 "Wi-Fi" -> {
                     item { SectionTitle("WI-FI INTELLIGENCE") }
