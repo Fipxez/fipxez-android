@@ -2,6 +2,8 @@ package com.fipxez.intel
 
 import android.Manifest
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
@@ -13,6 +15,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.viewinterop.AndroidView
+import android.view.ViewGroup
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,6 +61,8 @@ class MainActivity : ComponentActivity() {
     private var deviceLocation by mutableStateOf("Lokasi belum diminta.")
     private var evidence by mutableStateOf<List<String>>(emptyList())
     private var cctvResults by mutableStateOf<List<String>>(emptyList())
+    private var publicWifiResults by mutableStateOf<List<String>>(emptyList())
+    private var publicWifiMessage by mutableStateOf("Cari hotspot Wi-Fi publik yang dipetakan di sekitar kota/alamat.")
     private var cctvSearchMessage by mutableStateOf("Cari kota atau alamat untuk menemukan titik kamera yang dipetakan secara publik.")
 
     private val locationPermission = registerForActivityResult(
@@ -75,6 +89,10 @@ class MainActivity : ComponentActivity() {
                     locationText = deviceLocation,
                     evidence = evidence,
                     onScanWifi = ::scanWifi,
+                    publicWifiResults = publicWifiResults,
+                    publicWifiMessage = publicWifiMessage,
+                    onSearchPublicWifi = ::searchPublicWifi,
+                    onCopyText = ::copyText,
                     onGetLocation = ::requestDeviceLocation,
                     onOpenMap = ::openMap,
                     onAddEvidence = ::addEvidence,
@@ -138,13 +156,63 @@ class MainActivity : ComponentActivity() {
             manager.startScan()
             wifiNetworks = manager.scanResults.sortedByDescending { it.level }.map {
                 val name = it.SSID.takeIf(String::isNotBlank) ?: "(hidden network)"
-                "$name • ${it.capabilities} • ${it.level} dBm"
-            }.distinct().take(30)
+                "$name • ${it.capabilities} • ${it.level} dBm • ${it.frequency} MHz"
+            }.distinct()
             wifiMessage = if (wifiNetworks.isEmpty()) "Hasil kosong atau scan dibatasi Android. Aktifkan layanan lokasi perangkat dan coba lagi beberapa saat." else "Ditemukan ${wifiNetworks.size} jaringan. Data berasal dari hasil scan Android; password tidak dibaca."
         } catch (_: SecurityException) {
             wifiMessage = "Android menolak izin scan. Periksa izin Lokasi aplikasi."
         } catch (_: Exception) {
             wifiMessage = "Scan gagal. Pastikan Wi-Fi aktif."
+        }
+    }
+
+    private fun copyText(value: String) {
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("FIPXEZ INTEL", value))
+        wifiMessage = "Teks berhasil disalin."
+    }
+
+    private fun searchPublicWifi(place: String) {
+        if (place.isBlank()) { publicWifiMessage = "Masukkan kota atau alamat."; return }
+        publicWifiMessage = "Mencari hotspot Wi-Fi publik yang dipetakan..."
+        publicWifiResults = emptyList()
+        thread {
+            try {
+                val encoded = URLEncoder.encode(place.trim(), "UTF-8")
+                val geoConn = URL("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=$encoded").openConnection() as HttpURLConnection
+                geoConn.connectTimeout = 12000; geoConn.readTimeout = 15000
+                geoConn.setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.3 public map lookup")
+                val geo = geoConn.inputStream.bufferedReader().use { it.readText() }; geoConn.disconnect()
+                val arr = org.json.JSONArray(geo)
+                if (arr.length() == 0) throw IllegalStateException("Alamat tidak ditemukan.")
+                val loc = arr.getJSONObject(0); val lat = loc.getDouble("lat"); val lon = loc.getDouble("lon")
+                val query = """[out:json][timeout:25];(node["internet_access"~"wlan|public"](around:5000,$lat,$lon);way["internet_access"~"wlan|public"](around:5000,$lat,$lon);node["internet_access"="yes"](around:5000,$lat,$lon););out center tags;"""
+                val conn = URL("https://overpass-api.de/api/interpreter").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 15000; conn.readTimeout = 30000
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                conn.setRequestProperty("User-Agent", "FIPXEZ-INTEL-Android/0.3")
+                conn.outputStream.use { it.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray()) }
+                val data = conn.inputStream.bufferedReader().use { it.readText() }; conn.disconnect()
+                val elements = JSONObject(data).optJSONArray("elements") ?: org.json.JSONArray()
+                val results = mutableListOf<Pair<Float,String>>()
+                for (i in 0 until elements.length()) {
+                    val e = elements.getJSONObject(i); val tags = e.optJSONObject("tags") ?: JSONObject()
+                    val center = e.optJSONObject("center")
+                    val y = if (e.has("lat")) e.optDouble("lat") else center?.optDouble("lat") ?: lat
+                    val x = if (e.has("lon")) e.optDouble("lon") else center?.optDouble("lon") ?: lon
+                    val dist = FloatArray(1); Location.distanceBetween(lat,lon,y,x,dist)
+                    val title = tags.optString("name").ifBlank { tags.optString("operator").ifBlank { "Hotspot publik tanpa nama" } }
+                    val access = tags.optString("internet_access").ifBlank { "akses tidak dirinci" }
+                    val map = "https://www.openstreetmap.org/?mlat=$y&mlon=$x#map=19/$y/$x"
+                    results.add(dist[0] to "$title • %.0f m • $access\nPeta: $map".format(Locale.US,dist[0]))
+                }
+                val sorted = results.sortedBy { it.first }.map { it.second }
+                runOnUiThread {
+                    publicWifiResults = sorted
+                    publicWifiMessage = if (sorted.isEmpty()) "Tidak ada hotspot yang terpetakan dalam radius 5 km. Ini bukan hasil scan radio; cakupan tergantung kontribusi peta publik."
+                    else "Ditemukan ${sorted.size} lokasi hotspot yang ditandai di OpenStreetMap dalam radius 5 km. Ini bukan daftar semua jaringan Wi-Fi."
+                }
+            } catch (e: Exception) { runOnUiThread { publicWifiMessage = "Pencarian hotspot gagal: ${e.message ?: "coba lagi nanti"}" } }
         }
     }
 
@@ -228,7 +296,7 @@ class MainActivity : ComponentActivity() {
                 val first = geoArray.getJSONObject(0)
                 val lat = first.getDouble("lat"); val lon = first.getDouble("lon")
                 val display = first.optString("display_name", place)
-                val q = """[out:json][timeout:25];(node["man_made"="surveillance"](around:3000,$lat,$lon);way["man_made"="surveillance"](around:3000,$lat,$lon);relation["man_made"="surveillance"](around:3000,$lat,$lon);node["surveillance"](around:3000,$lat,$lon);way["surveillance"](around:3000,$lat,$lon););out center tags;"""
+                val q = """[out:json][timeout:25];(node["man_made"="surveillance"](around:5000,$lat,$lon);way["man_made"="surveillance"](around:5000,$lat,$lon);relation["man_made"="surveillance"](around:5000,$lat,$lon);node["surveillance"](around:5000,$lat,$lon);way["surveillance"](around:5000,$lat,$lon););out center tags;"""
                 val conn = URL("https://overpass-api.de/api/interpreter").openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 15000; conn.readTimeout = 30000
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
@@ -246,9 +314,11 @@ class MainActivity : ComponentActivity() {
                     val name = tags.optString("name").ifBlank { tags.optString("operator").ifBlank { "Kamera/pengawasan tanpa nama" } }
                     val kind = tags.optString("surveillance:type").ifBlank { tags.optString("camera:type").ifBlank { "jenis tidak dicantumkan" } }
                     val map = "https://www.openstreetmap.org/?mlat=$itemLat&mlon=$itemLon#map=19/$itemLat/$itemLon"
-                    found.add(distance[0] to "$name • %.0f m • $kind\nPeta: $map".format(Locale.US,distance[0]))
+                    val stream = listOf("camera:stream", "surveillance:stream", "stream_url").firstNotNullOfOrNull { key -> tags.optString(key).takeIf { it.startsWith("http://") || it.startsWith("https://") || it.startsWith("rtsp://") } }
+                    val streamLine = stream?.let { "\nPublic stream: $it" } ?: ""
+                    found.add(distance[0] to "$name • %.0f m • $kind\nPeta: $map$streamLine".format(Locale.US,distance[0]))
                 }
-                val sorted = found.sortedBy { it.first }.take(30).map { it.second }
+                val sorted = found.sortedBy { it.first }.map { it.second }
                 runOnUiThread {
                     cctvResults = sorted
                     cctvSearchMessage = if (sorted.isEmpty()) "Lokasi ditemukan: $display. Belum ada titik kamera yang dipetakan dalam radius 3 km. Ini bukan bukti tidak ada CCTV; cakupan peta bergantung data publik."
@@ -264,7 +334,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun IntelApp(
     wifiNetworks: List<String>, wifiMessage: String, locationText: String, evidence: List<String>,
-    onScanWifi: () -> Unit, onGetLocation: () -> Unit, onOpenMap: () -> Unit,
+    onScanWifi: () -> Unit, publicWifiResults: List<String>, publicWifiMessage: String, onSearchPublicWifi: (String) -> Unit, onCopyText: (String) -> Unit,
+    onGetLocation: () -> Unit, onOpenMap: () -> Unit,
     onAddEvidence: (String) -> Unit, onDeleteEvidence: (String) -> Unit, onExportEvidence: () -> Unit,
     onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit, onCallerIdSearch: (String) -> Unit,
     onTelegramSearch: (String) -> Unit,
@@ -275,6 +346,7 @@ private fun IntelApp(
     var telegramId by remember { mutableStateOf("") }
     var phoneResult by remember { mutableStateOf("Analisis lokal hanya memeriksa format dan petunjuk prefix; identitas pemilik tidak tersedia.") }
     var cctvUrl by remember { mutableStateOf("") }
+    var wifiPlace by remember { mutableStateOf("") }
     var placeQuery by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
 
@@ -289,6 +361,7 @@ private fun IntelApp(
                         "Location" -> Icons.Default.MyLocation
                         "Place CCTV" -> Icons.Default.Map
                         "CCTV" -> Icons.Default.Videocam
+                        "CCTV PLAYER" -> Icons.Default.PlayArrow
                         else -> Icons.Default.Folder
                     }, contentDescription = item) }, label = { Text(item, fontSize = 9.sp) })
             }
@@ -340,6 +413,16 @@ private fun IntelApp(
                     item { InfoCard(wifiMessage) }
                     item { Button(onClick = onScanWifi, modifier = Modifier.fillMaxWidth()) { Text("SCAN NEARBY WI-FI") } }
                     items(wifiNetworks) { InfoCard(it) }
+                    item { Divider(color = Muted) }
+                    item { SectionTitle("PUBLIC HOTSPOT MAP") }
+                    item { OutlinedTextField(wifiPlace, { wifiPlace = it }, label = { Text("Kota / alamat tujuan") }, placeholder = { Text("Contoh: Bandung, Indonesia") }, modifier = Modifier.fillMaxWidth()) }
+                    item { OutlinedButton(onClick = { onSearchPublicWifi(wifiPlace) }, modifier = Modifier.fillMaxWidth()) { Text("CARI HOTSPOT PUBLIK DI LOKASI") } }
+                    item { InfoCard(publicWifiMessage) }
+                    items(publicWifiResults) { result ->
+                        InfoCard(result)
+                        val link = Regex("Peta: (https?://\\S+)").find(result)?.groupValues?.get(1)
+                        if (link != null) TextButton(onClick = { onCopyText(link) }) { Text("SALIN TAUTAN PETA") }
+                    }
                 }
                 "Location" -> {
                     item { SectionTitle("DEVICE LOCATION") }
@@ -353,14 +436,27 @@ private fun IntelApp(
                     item { OutlinedTextField(placeQuery, { placeQuery = it }, label = { Text("Kota / jalan / alamat tujuan") }, placeholder = { Text("Contoh: Pasirlayung, Bandung") }, modifier = Modifier.fillMaxWidth()) }
                     item { Button(onClick = { onSearchPublicCctv(placeQuery) }, modifier = Modifier.fillMaxWidth()) { Text("CARI CCTV TERDEKAT") } }
                     item { InfoCard(cctvSearchMessage) }
-                    items(cctvResults) { InfoCard(it) }
-                    item { InfoCard("Sumber: OpenStreetMap dan Overpass API. Hasil adalah titik kamera/pengawasan yang dipetakan publik, bukan daftar semua CCTV dan bukan jaminan live stream. Kamera privat dan feed tanpa publikasi tidak diakses.") }
+                    items(cctvResults) { result ->
+                        InfoCard(result)
+                        val mapLink = Regex("Peta: (https?://\\S+)").find(result)?.groupValues?.get(1)
+                        val streamLink = Regex("Public stream: (\\S+)").find(result)?.groupValues?.get(1)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (mapLink != null) TextButton(onClick = { onCopyText(mapLink) }) { Text("SALIN URL PETA") }
+                            if (streamLink != null) TextButton(onClick = { cctvUrl = streamLink; selected = "CCTV" }) { Text("PUTAR LIVE") }
+                        }
+                    }
+                    item { InfoCard("Radius pencarian 5 km. Sumber: OpenStreetMap dan Overpass API. Tombol salin menyalin tautan peta. Tombol PUTAR LIVE hanya muncul bila ada URL stream yang dipublikasikan pada data peta; sebagian besar titik tidak menyediakan feed.") }
                 }
                 "CCTV" -> {
                     item { SectionTitle("AUTHORIZED CCTV STREAM") }
                     item { OutlinedTextField(cctvUrl, { cctvUrl = it }, label = { Text("RTSP / HTTP stream URL") }, placeholder = { Text("rtsp://kamera-anda/stream") }, modifier = Modifier.fillMaxWidth()) }
-                    item { Button(onClick = { onOpenCctv(cctvUrl) }, modifier = Modifier.fillMaxWidth()) { Text("OPEN STREAM") } }
-                    item { InfoCard("Masukkan alamat stream dan kredensial kamera milik sendiri/yang diizinkan. Android akan meneruskan URL ke aplikasi pemutar yang mendukung RTSP. Jika tidak ada pemutar kompatibel, stream tidak akan terbuka.") }
+                    item { Button(onClick = { if (cctvUrl.startsWith("http://") || cctvUrl.startsWith("https://") || cctvUrl.startsWith("rtsp://")) selected = "CCTV PLAYER" }, modifier = Modifier.fillMaxWidth()) { Text("PUTAR DI APLIKASI") } }
+                    item { InfoCard("Pemutar internal menggunakan Media3. Masukkan URL stream kamera milik sendiri atau yang memang dipublikasikan dan boleh diakses. Stream dengan autentikasi, format, atau protokol yang tidak didukung mungkin gagal diputar.") }
+                }
+                "CCTV PLAYER" -> {
+                    item { SectionTitle("LIVE CCTV PLAYER") }
+                    item { if (cctvUrl.isNotBlank()) CctvPlayer(cctvUrl) else InfoCard("Belum ada URL stream.") }
+                    item { TextButton(onClick = { selected = "CCTV" }) { Text("KEMBALI") } }
                 }
                 "Evidence" -> {
                     item { SectionTitle("EVIDENCE CENTER") }
@@ -398,3 +494,21 @@ private fun IntelApp(
 }
 @Composable private fun SectionTitle(value: String) { Text(value, color = Blue, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.4.sp) }
 @Composable private fun InfoCard(value: String) { Surface(color = Panel, shape = RoundedCornerShape(14.dp)) { Text(value, color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(14.dp)) } }
+
+@Composable private fun CctvPlayer(url: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    DisposableEffect(player) { onDispose { player.release() } }
+    AndroidView(factory = { ctx ->
+        PlayerView(ctx).apply {
+            this.player = player
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620)
+        }
+    }, modifier = Modifier.fillMaxWidth().height(230.dp))
+}
