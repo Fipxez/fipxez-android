@@ -494,6 +494,13 @@ private fun IntelApp(
                     item { InfoCard(wifiMessage) }
                     item { Button(onClick = onScanWifi, modifier = Modifier.fillMaxWidth()) { Text("SCAN NEARBY WI-FI") } }
                     items(wifiNetworks) { InfoCard(it) }
+                }
+                "Location" -> {
+                    item { SectionTitle("DEVICE LOCATION") }
+                    item { InfoCard(locationText) }
+                    item { Button(onClick = onGetLocation, modifier = Modifier.fillMaxWidth()) { Text("PERBARUI LOKASI PERANGKAT") } }
+                    item { OutlinedButton(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) { Text("BUKA DI PETA") } }
+                    item { InfoCard("Lokasi hanya berasal dari sensor/lokasi HP yang memberi izin. Ini bukan pelacak nomor atau perangkat pihak lain.") }
                     item { Divider(color = Muted) }
                     item { SectionTitle("PUBLIC HOTSPOT MAP") }
                     item { OutlinedTextField(wifiPlace, { wifiPlace = it }, label = { Text("Kota / alamat tujuan") }, placeholder = { Text("Contoh: Bandung, Indonesia") }, modifier = Modifier.fillMaxWidth()) }
@@ -504,13 +511,6 @@ private fun IntelApp(
                         val link = Regex("Peta: (https?://\\S+)").find(result)?.groupValues?.get(1)
                         if (link != null) TextButton(onClick = { onCopyText(link) }) { Text("SALIN TAUTAN PETA") }
                     }
-                }
-                "Location" -> {
-                    item { SectionTitle("DEVICE LOCATION") }
-                    item { InfoCard(locationText) }
-                    item { Button(onClick = onGetLocation, modifier = Modifier.fillMaxWidth()) { Text("PERBARUI LOKASI PERANGKAT") } }
-                    item { OutlinedButton(onClick = onOpenMap, modifier = Modifier.fillMaxWidth()) { Text("BUKA DI PETA") } }
-                    item { InfoCard("Lokasi hanya berasal dari sensor/lokasi HP yang memberi izin. Ini bukan pelacak nomor atau perangkat pihak lain.") }
                 }
                 "Place CCTV" -> {
                     item { SectionTitle("LOCATION & PUBLIC CCTV FINDER") }
