@@ -2,6 +2,8 @@ package com.fipxez.intel
 
 import android.Manifest
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -69,6 +71,27 @@ class MainActivity : ComponentActivity() {
     private var publicWifiMessage by mutableStateOf("Cari hotspot Wi-Fi publik yang dipetakan di sekitar kota/alamat.")
     private var cctvSearchMessage by mutableStateOf("Cari kota atau alamat untuk menemukan titik kamera yang dipetakan secara publik.")
 
+    private val wifiScanReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) return
+            @Suppress("DEPRECATION")
+            try {
+                val manager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                wifiNetworks = manager.scanResults.sortedByDescending { it.level }.map {
+                    val name = it.SSID.takeIf(String::isNotBlank) ?: "(hidden network)"
+                    "$name • ${it.capabilities} • ${it.level} dBm • ${it.frequency} MHz"
+                }.distinct()
+                wifiMessage = if (wifiNetworks.isEmpty()) {
+                    "Scan selesai, tetapi Android tidak mengembalikan jaringan. Periksa izin Lokasi dan layanan lokasi perangkat."
+                } else {
+                    "Scan selesai: ${wifiNetworks.size} jaringan terlihat. Password jaringan tidak dibaca."
+                }
+            } catch (_: SecurityException) {
+                wifiMessage = "Android menolak akses hasil scan. Periksa izin Lokasi aplikasi."
+            }
+        }
+    }
+
     private val locationPermission = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -79,6 +102,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(this, wifiScanReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION), ContextCompat.RECEIVER_EXPORTED)
         evidence = getSharedPreferences("fipxez_evidence", MODE_PRIVATE)
             .getStringSet("items", emptySet())?.toList()?.sortedDescending() ?: emptyList()
 
@@ -112,6 +136,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(wifiScanReceiver)
+        super.onDestroy()
     }
 
     private fun requestDeviceLocation() {
@@ -157,12 +186,11 @@ class MainActivity : ComponentActivity() {
                 wifiMessage = "Wi-Fi belum aktif. Aktifkan Wi-Fi dari Quick Settings lalu scan lagi."
                 return
             }
-            manager.startScan()
-            wifiNetworks = manager.scanResults.sortedByDescending { it.level }.map {
-                val name = it.SSID.takeIf(String::isNotBlank) ?: "(hidden network)"
-                "$name • ${it.capabilities} • ${it.level} dBm • ${it.frequency} MHz"
-            }.distinct()
-            wifiMessage = if (wifiNetworks.isEmpty()) "Hasil kosong atau scan dibatasi Android. Aktifkan layanan lokasi perangkat dan coba lagi beberapa saat." else "Ditemukan ${wifiNetworks.size} jaringan. Data berasal dari hasil scan Android; password tidak dibaca."
+            wifiMessage = "Memindai jaringan Wi-Fi di sekitar perangkat..."
+            val started = manager.startScan()
+            if (!started) {
+                wifiMessage = "Android menunda scan karena pembatasan sistem. Tunggu sebentar lalu coba lagi."
+            }
         } catch (_: SecurityException) {
             wifiMessage = "Android menolak izin scan. Periksa izin Lokasi aplikasi."
         } catch (_: Exception) {
