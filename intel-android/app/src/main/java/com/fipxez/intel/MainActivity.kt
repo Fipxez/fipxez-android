@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                     onOpenCctv = ::openCctv,
                     onPublicSearch = ::openPublicSearch,
                     onCallerIdSearch = ::openCallerIdSearch,
+                    onTelegramSearch = ::openTelegramPublicSearch,
                     cctvResults = cctvResults,
                     cctvSearchMessage = cctvSearchMessage,
                     onSearchPublicCctv = ::searchPublicCctv
@@ -203,6 +204,13 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
     }
 
+    private fun openTelegramPublicSearch(identifier: String) {
+        val clean = identifier.trim().removePrefix("@")
+        if (clean.isBlank()) return
+        val query = Uri.encode("\\"$clean\\" (site:t.me OR site:telegram.me OR Telegram)")
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
+    }
+
     private fun searchPublicCctv(place: String) {
         if (place.isBlank()) { cctvSearchMessage = "Masukkan nama kota, jalan, atau alamat."; return }
         cctvSearchMessage = "Mencari lokasi dan titik kamera yang dipetakan secara publik..."
@@ -259,10 +267,12 @@ private fun IntelApp(
     onScanWifi: () -> Unit, onGetLocation: () -> Unit, onOpenMap: () -> Unit,
     onAddEvidence: (String) -> Unit, onDeleteEvidence: (String) -> Unit, onExportEvidence: () -> Unit,
     onOpenCctv: (String) -> Unit, onPublicSearch: (String) -> Unit, onCallerIdSearch: (String) -> Unit,
+    onTelegramSearch: (String) -> Unit,
     cctvResults: List<String>, cctvSearchMessage: String, onSearchPublicCctv: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf("Overview") }
     var phone by remember { mutableStateOf("") }
+    var telegramId by remember { mutableStateOf("") }
     var phoneResult by remember { mutableStateOf("Analisis lokal hanya memeriksa format dan petunjuk prefix; identitas pemilik tidak tersedia.") }
     var cctvUrl by remember { mutableStateOf("") }
     var placeQuery by remember { mutableStateOf("") }
@@ -320,6 +330,10 @@ private fun IntelApp(
                     item { Button(onClick = { if (phone.isNotBlank()) onPublicSearch(phone) }, modifier = Modifier.fillMaxWidth()) { Text("CARI NAMA & JEJAK NOMOR DI WEB") } }
                     item { OutlinedButton(onClick = { if (phone.isNotBlank()) onCallerIdSearch(phone) }, modifier = Modifier.fillMaxWidth()) { Text("CEK DIREKTORI CALLER ID / TAG") } }
                     item { InfoCard("Pencarian dilakukan dari HP lu ke sumber web publik; orang lain tidak perlu memasang FIPXEZ. Hasil nama/tag hanya muncul bila dipublikasikan atau diindeks sumber tersebut. FIPXEZ tidak mengambil database privat Getcontact/Truecaller dan hasil perlu diverifikasi.") }
+                    item { SectionTitle("TELEGRAM PUBLIC FOOTPRINT") }
+                    item { OutlinedTextField(telegramId, { telegramId = it }, label = { Text("Username / ID Telegram") }, placeholder = { Text("@username") }, modifier = Modifier.fillMaxWidth()) }
+                    item { OutlinedButton(onClick = { if (telegramId.isNotBlank()) onTelegramSearch(telegramId) }, modifier = Modifier.fillMaxWidth()) { Text("CARI JEJAK PUBLIK TELEGRAM") } }
+                    item { InfoCard("Mencari username atau ID yang memang muncul di halaman/profil publik dan hasil indeks web. Tidak membuka akun privat, pesan, nomor tersembunyi, atau alamat pribadi.") }
                 }
                 "Wi-Fi" -> {
                     item { SectionTitle("WI-FI INTELLIGENCE") }
